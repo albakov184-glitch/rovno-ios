@@ -38,6 +38,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache Capacitor binaries
+        uses: actions/cache@v4
+        with:
+          path: vendor/capacitor-swift-pm
+          key: capacitor-swift-pm-${{ hashFiles('package-lock.json') }}
+
       - name: Build web app
         run: npm run build
 
@@ -54,10 +60,13 @@ jobs:
 
       # ---------- offline ----------
       - name: Sync iOS project (offline)
-        run: npx cap sync ios
+        timeout-minutes: 10
+        run: |
+          npx cap sync ios
+          bash scripts/vendor-capacitor.sh
 
       - name: Resolve Swift packages
-        timeout-minutes: 12
+        timeout-minutes: 8
         run: |
           set -o pipefail
           mkdir -p logs
@@ -93,6 +102,7 @@ jobs:
             fs.writeFileSync('capacitor.config.json', JSON.stringify(c, null, 2));
           "
           npx cap sync ios
+          bash scripts/vendor-capacitor.sh
 
       - name: Build online app
         timeout-minutes: 20
