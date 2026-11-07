@@ -1,0 +1,74 @@
+name: Build IPA
+
+# Собирает неподписанный Rovno.ipa на macOS-раннере GitHub.
+# Где взять файл:
+#   • Actions → Build IPA → последний запуск → артефакт Rovno-ipa
+#   • Releases → «Ровно (последняя сборка)» — ссылку можно открыть прямо с iPhone
+# Подписать и установить: своим сертификатом (ESign, Scarlet, Sideloadly, AltStore).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-ipa
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app and sync iOS project
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: Build iOS app (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          APP=build/ios/Build/Products/Release-iphoneos/App.app
+          test -f "$APP/App" || { echo "App.app не собран"; exit 1; }
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry Rovno.ipa Payload
+          ls -la Rovno.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rovno-ipa
+          path: Rovno.ipa
+          retention-days: 30
+
+      - name: Publish to the "latest" release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Сборка ${GITHUB_SHA::7} от $(date -u '+%d.%m.%Y %H:%M') UTC. Неподписанный IPA: подпишите своим сертификатом."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "Ровно (последняя сборка)" --notes "$NOTES"
+            gh release upload latest Rovno.ipa --clobber
+          else
+            gh release create latest Rovno.ipa --title "Ровно (последняя сборка)" --notes "$NOTES" --latest
+          fi
