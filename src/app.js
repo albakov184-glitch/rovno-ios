@@ -1946,6 +1946,11 @@
         if (tgAtLeast('7.7')) TG.disableVerticalSwipes();
         if (tgAtLeast('6.1')) TG.BackButton.onClick(tgBack);
         TG.onEvent('themeChanged', () => { applyTheme(); renderAll(); });
+        // full screen on phones; the layout moves below Telegram's close and menu buttons
+        const fs = () => { document.documentElement.classList.toggle('tg-fs', !!TG.isFullscreen); requestAnimationFrame(() => moveBlob(false)); };
+        ['fullscreenChanged', 'safeAreaChanged', 'contentSafeAreaChanged'].forEach(ev => TG.onEvent(ev, fs));
+        if (tgAtLeast('8.0') && /^(ios|android)$/.test(TG.platform) && !TG.isFullscreen) TG.requestFullscreen();
+        fs();
       } catch (e) {}
     }
     try {

@@ -46,7 +46,7 @@ const head = `<!doctype html>
 })();
 </script>
 <style>
-html { padding-top: env(safe-area-inset-top, 0px); }
+html { padding-top: var(--sat, env(safe-area-inset-top, 0px)); }
 body { margin: 0; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; overscroll-behavior-y: none; }
 input { -webkit-user-select: text; user-select: text; }
 img { max-width: 100%; }
