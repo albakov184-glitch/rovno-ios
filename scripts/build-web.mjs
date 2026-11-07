@@ -37,6 +37,14 @@ const head = `<!doctype html>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
 <script>window.ROVNO_BUILD = ${JSON.stringify(build)};</script>
+<script>
+// Telegram's Mini App script, only when a Telegram bot opened the page
+(function () {
+  var tg = /tgWebApp/.test(location.hash + location.search) || !!window.TelegramWebviewProxy;
+  try { tg = tg || !!sessionStorage.getItem('__telegram__initParams'); } catch (e) {}
+  if (tg) document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\\/script>');
+})();
+</script>
 <style>
 html { padding-top: env(safe-area-inset-top, 0px); }
 body { margin: 0; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; overscroll-behavior-y: none; }

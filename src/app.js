@@ -12,6 +12,9 @@
   const round2 = v => Math.round(v * 100) / 100;
   const raf2 = fn => requestAnimationFrame(() => requestAnimationFrame(fn));
   const BUILD = window.ROVNO_BUILD || null;
+  // Telegram Mini App: present only when the bot opened the page
+  const TG = (() => { const w = window.Telegram && window.Telegram.WebApp; return w && w.initData ? w : null; })();
+  const tgAtLeast = v => !!(TG && TG.isVersionAtLeast && TG.isVersionAtLeast(v));
 
   // ================= icons =================
   const P = {
@@ -158,6 +161,51 @@
       async save(str) { await Pref.set({ key: KEY, value: str }); }
     };
   }
+  // Telegram CloudStorage: values up to 4096 chars, so the state is split into chunks.
+  // A local copy keeps the app instant and working offline; the newer copy wins on load.
+  function makeTelegram(T) {
+    const CS = T.CloudStorage;
+    const call = (fn, ...args) => new Promise((res, rej) => { try { CS[fn](...args, (err, v) => err ? rej(err) : res(v)); } catch (e) { rej(e); } });
+    const local = makeBrowser();
+    const SIZE = 3800;
+    let lastN = 0, timer = null, warned = false;
+    async function upload(str) {
+      const parts = [];
+      for (let i = 0; i < str.length; i += SIZE) parts.push(str.slice(i, i + SIZE));
+      for (let i = 0; i < parts.length; i++) await call('setItem', 'rovno_' + i, parts[i]);
+      await call('setItem', 'rovno_n', String(parts.length));
+      if (lastN > parts.length) { const stale = []; for (let i = parts.length; i < lastN; i++) stale.push('rovno_' + i); await call('removeItems', stale).catch(() => {}); }
+      lastN = parts.length;
+    }
+    return {
+      kind: 'telegram',
+      async load() {
+        let cloud = null;
+        try {
+          const n = Number(await Promise.race([call('getItem', 'rovno_n'), new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 5000))])) || 0;
+          if (n) {
+            const keys = Array.from({ length: n }, (_, i) => 'rovno_' + i);
+            const got = await call('getItems', keys);
+            cloud = JSON.parse(keys.map(k => got[k] || '').join(''));
+            lastN = n;
+          }
+        } catch (e) {}
+        const loc = await local.load();
+        if (!cloud) return loc;
+        return loc && (loc.savedAt || 0) > (cloud.savedAt || 0) ? loc : cloud;
+      },
+      async save(str, now) {
+        await local.save(str);
+        clearTimeout(timer);
+        const run = () => upload(str).then(() => { warned = false; }).catch(() => {
+          if (!warned) toast('Нет связи с облаком Telegram. Данные сохранены на устройстве.', 'alert');
+          warned = true;
+        });
+        if (now) run(); else timer = setTimeout(run, 900);
+      }
+    };
+  }
+
   async function makeClaude() {
     if (!window.claude || !window.claude.use) return null;
     const timeout = new Promise(r => setTimeout(() => r(null), 8000));
@@ -187,7 +235,8 @@
     clearTimeout(saveTimer);
     const run = () => {
       if (!backend) return;
-      backend.save(JSON.stringify(state)).then(() => { saveFailed = false; }).catch(() => {
+      state.savedAt = Date.now();
+      backend.save(JSON.stringify(state), now).then(() => { saveFailed = false; }).catch(() => {
         if (!saveFailed) toast('Не получилось сохранить. Данные останутся, пока приложение открыто.', 'alert');
         saveFailed = true;
       });
@@ -261,6 +310,13 @@
   function haptic(kind) {
     if (!state.settings.haptics) return;
     try {
+      if (TG && TG.HapticFeedback && tgAtLeast('6.1')) {
+        const T = TG.HapticFeedback;
+        if (kind === 'success' || kind === 'warn' || kind === 'error') T.notificationOccurred(kind === 'warn' ? 'warning' : kind);
+        else if (kind === 'select') T.selectionChanged();
+        else T.impactOccurred(kind === 'medium' ? 'medium' : kind === 'heavy' ? 'heavy' : 'light');
+        return;
+      }
       const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
       if (!H) return;
       if (kind === 'success') H.notification({ type: 'SUCCESS' });
@@ -388,6 +444,7 @@
         scrim.hidden = false; el.hidden = false; api.isOpen = true;
         el.scrollTop = 0;
         raf2(() => { scrim.classList.add('on'); el.classList.add('on'); });
+        syncBack();
       },
       close() {
         if (!api.isOpen) return;
@@ -397,6 +454,7 @@
         if (document.activeElement && el.contains(document.activeElement)) document.activeElement.blur();
         setTimeout(() => { if (!api.isOpen) { scrim.hidden = true; el.hidden = true; } }, 480);
         if (api.onClose) api.onClose();
+        syncBack();
       }
     };
     scrim.addEventListener('click', () => api.close());
@@ -473,6 +531,7 @@
     const under = pageStack[pageStack.length - 2];
     raf2(() => { pg.classList.add('on'); if (under) under.el.classList.add('under'); });
     haptic('light');
+    syncBack();
     // swipe from the left edge to go back
     let x0 = null, dx = 0;
     pg.addEventListener('pointerdown', e => { if (e.clientX < 28 && e.pointerType !== 'mouse') { x0 = e.clientX; dx = 0; pg.classList.add('dragging'); } });
@@ -488,8 +547,21 @@
     const under = pageStack[pageStack.length - 1];
     if (under) { under.el.classList.remove('under'); under.refresh(); }
     setTimeout(() => top.el.remove(), 480);
+    syncBack();
   }
   function refreshPages() { pageStack.forEach(p => p.refresh()); }
+
+  // Telegram shows its own Back button; keep it in step with pages and sheets
+  function syncBack() {
+    if (!TG || !TG.BackButton || !tgAtLeast('6.1')) return;
+    const need = pageStack.length || (txSheet && txSheet.isOpen) || (formSheet && formSheet.isOpen);
+    if (need) TG.BackButton.show(); else TG.BackButton.hide();
+  }
+  function tgBack() {
+    if (formSheet && formSheet.isOpen) formSheet.close();
+    else if (txSheet && txSheet.isOpen) txSheet.close();
+    else popPage();
+  }
 
   // ---------- generic form sheet ----------
   let formSheet;
@@ -1097,13 +1169,14 @@
       '<span class="r">' + (o.right || '') + (o.chev ? icon('chevR') : '') + '</span></' + (tag === 'div' ? 'div' : 'button') + '>';
   }
   function modeName() {
+    if (TG) return 'Telegram';
     const cap = window.Capacitor;
     if (cap && cap.isNativePlatform && cap.isNativePlatform()) return location.protocol === 'https:' ? 'Онлайн-версия' : 'Офлайн-версия';
     if (window.claude) return 'Версия в Claude';
     return 'Веб-версия';
   }
   function storeName() {
-    return !backend ? '…' : backend.kind === 'native' ? 'на этом iPhone' : backend.kind === 'claude' ? 'в аккаунте Claude' : 'в этом браузере';
+    return !backend ? '…' : backend.kind === 'native' ? 'на этом iPhone' : backend.kind === 'telegram' ? 'в облаке Telegram' : backend.kind === 'claude' ? 'в аккаунте Claude' : 'в этом браузере';
   }
   function renderMore() {
     const v = $('v-more');
@@ -1389,7 +1462,13 @@
   function applyTheme() {
     const t = state.settings.theme;
     if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    else if (TG && TG.colorScheme) document.documentElement.dataset.theme = TG.colorScheme;
     else if (!window.claude) delete document.documentElement.dataset.theme;
+    if (TG && tgAtLeast('6.1')) {
+      // paint Telegram's header and background in the app's own background
+      const rgb = getComputedStyle(document.body).backgroundColor.match(/\d+/g);
+      if (rgb) { const hex = '#' + rgb.slice(0, 3).map(x => Number(x).toString(16).padStart(2, '0')).join(''); try { TG.setHeaderColor(hex); TG.setBackgroundColor(hex); if (TG.setBottomBarColor) TG.setBottomBarColor(hex); } catch (e) {} }
+    }
   }
   function openTheme() {
     pushPage('Оформление', pg => {
@@ -1587,6 +1666,13 @@
   async function saveFile(name, text, mime) {
     const cap = window.Capacitor;
     const native = cap && cap.isNativePlatform && cap.isNativePlatform();
+    if (TG) {
+      try {
+        const file = new File([text], name, { type: mime });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; }
+      } catch (e) { if (e && e.name === 'AbortError') throw new Error('cancel'); }
+      throw new Error('telegram');
+    }
     // iPhone: the system share sheet saves the file to Files or sends it anywhere
     if (native || /iPhone|iPad/.test(navigator.userAgent)) {
       try {
@@ -1607,18 +1693,24 @@
     return true;
   }
   const stamp = () => todayIso();
+  function fileError(e) {
+    const m = String(e && e.message);
+    if (/cancel/i.test(m)) return;
+    if (m === 'telegram') toast('Telegram не умеет сохранять файлы. Откройте сайт в Safari, данные там свои.', 'alert');
+    else toast('Не получилось сохранить файл', 'alert');
+  }
   async function exportCsv() {
     if (!state.tx.length) return toast('Пока нечего выгружать');
     const q = s => '"' + String(s).replace(/"/g, '""') + '"';
     const rows = [['Дата', 'Тип', 'Категория', 'Сумма', 'Валюта', 'Заметка'].join(';')].concat(
       state.tx.slice().sort((a, b) => a.date.localeCompare(b.date)).map(t => [t.date, t.type === 'income' ? 'Доход' : 'Расход', q(catOf(t.type, t.category).name), String(t.type === 'income' ? t.amount : -t.amount).replace('.', ','), state.settings.currency, q(t.note || '')].join(';')));
     try { await saveFile('rovno-' + stamp() + '.csv', '﻿' + rows.join('\r\n'), 'text/csv'); toast('Файл готов', 'ok'); }
-    catch (e) { if (!/cancel/i.test(String(e && e.message))) toast('Не получилось сохранить файл', 'alert'); }
+    catch (e) { fileError(e); }
   }
   async function exportBackup() {
     const data = JSON.stringify({ app: 'rovno', exportedAt: new Date().toISOString(), state: Object.assign({}, state, { settings: Object.assign({}, state.settings, { pin: '' }) }) }, null, 1);
     try { await saveFile('rovno-backup-' + stamp() + '.json', data, 'application/json'); toast('Резервная копия сохранена', 'ok'); }
-    catch (e) { if (!/cancel/i.test(String(e && e.message))) toast('Не получилось сохранить файл', 'alert'); }
+    catch (e) { fileError(e); }
   }
   $('importFile').addEventListener('change', e => {
     const f = e.target.files && e.target.files[0];
@@ -1848,9 +1940,18 @@
     renderNav();
     go((location.hash || '').slice(1) || 'overview', false);
     requestAnimationFrame(() => moveBlob(false));
+    if (TG) {
+      try {
+        TG.ready(); TG.expand();
+        if (tgAtLeast('7.7')) TG.disableVerticalSwipes();
+        if (tgAtLeast('6.1')) TG.BackButton.onClick(tgBack);
+        TG.onEvent('themeChanged', () => { applyTheme(); renderAll(); });
+      } catch (e) {}
+    }
     try {
       const Pref = nativePrefs();
       if (Pref) backend = makeNative(Pref);
+      else if (TG && tgAtLeast('6.9') && TG.CloudStorage) backend = makeTelegram(TG);
       else backend = (await makeClaude().catch(() => null)) || makeBrowser();
       state = normalize(await backend.load().catch(() => null));
     } catch (e) {
