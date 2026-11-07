@@ -56,13 +56,24 @@ jobs:
       - name: Sync iOS project (offline)
         run: npx cap sync ios
 
-      - name: Build offline app
+      - name: Resolve Swift packages
+        timeout-minutes: 12
         run: |
+          set -o pipefail
+          mkdir -p logs
+          xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App \
+            -clonedSourcePackagesDirPath build/spm -skipPackagePluginValidation -skipMacroValidation 2>&1 | tee logs/resolve.log | tail -40
+
+      - name: Build offline app
+        timeout-minutes: 20
+        run: |
+          set -o pipefail
           xcodebuild -project ios/App/App.xcodeproj -scheme App \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -derivedDataPath build/offline \
+            -derivedDataPath build/offline -clonedSourcePackagesDirPath build/spm \
+            -skipPackagePluginValidation -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee logs/offline.log | grep -E "error:|BUILD|\*\*" | tail -60
 
       - name: Package Rovno-Offline.ipa
         run: |
@@ -84,13 +95,16 @@ jobs:
           npx cap sync ios
 
       - name: Build online app
+        timeout-minutes: 20
         run: |
+          set -o pipefail
           xcodebuild -project ios/App/App.xcodeproj -scheme App \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -derivedDataPath build/online \
+            -derivedDataPath build/online -clonedSourcePackagesDirPath build/spm \
+            -skipPackagePluginValidation -skipMacroValidation \
             PRODUCT_BUNDLE_IDENTIFIER=app.rovno.finance.online \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build
+            build 2>&1 | tee logs/online.log | grep -E "error:|BUILD|\*\*" | tail -60
 
       - name: Package Rovno-Online.ipa
         run: |
@@ -126,3 +140,15 @@ jobs:
           else
             gh release create latest Rovno-Offline.ipa Rovno-Online.ipa --title "Ровно ${VER}" --notes "$NOTES" --latest
           fi
+
+      # readable without signing in: logs go to a public release when something fails
+      - name: Publish logs on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p logs
+          for f in resolve offline online; do [ -f logs/$f.log ] && tail -c 300000 logs/$f.log > logs/$f-tail.log; done
+          ls logs
+          gh release view ci-logs >/dev/null 2>&1 || gh release create ci-logs --title "CI logs" --notes "Логи упавших сборок" --prerelease
+          gh release upload ci-logs logs/*-tail.log --clobber || true
