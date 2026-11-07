@@ -31,8 +31,8 @@ const head = `<!doctype html>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Ровно">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f1f4fa" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#050c1a" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="icon-192.png">
@@ -61,7 +61,7 @@ writeFileSync(new URL('index.html', web), head + page + '\n</body>\n</html>\n');
 
 writeFileSync(new URL('manifest.webmanifest', web), JSON.stringify({
   name: 'Ровно', short_name: 'Ровно', lang: 'ru', start_url: './', scope: './', display: 'standalone',
-  background_color: '#f2f2f7', theme_color: '#007aff',
+  background_color: '#f1f4fa', theme_color: '#007aff',
   icons: [{ src: 'icon-192.png', sizes: '192x192', type: 'image/png' }, { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }]
 }, null, 1));
 

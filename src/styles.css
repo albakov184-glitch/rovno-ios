@@ -1,6 +1,6 @@
 /* Layout: iOS-приложение из четырёх вкладок (Обзор, Операции, Аналитика, Ещё). Сплошные карточки на системном фоне, стекло только у навигации, меню, листов и уведомлений. Вложенные экраны въезжают справа, как в Настройках iPhone. */
 :root {
-  --bg: #f2f2f7;
+  --bg: #f1f4fa;
   --fg: #000000;
   --fg-2: #6c6c70;
   --fg-3: #aeaeb2;
@@ -35,19 +35,19 @@ html.tg-fs {
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #000000; --fg: #ffffff; --fg-2: #98989f; --fg-3: #636366;
-    --card: #1c1c1e; --card-2: #2c2c2e; --fill: rgba(118, 118, 128, .22); --fill-2: rgba(118, 118, 128, .32);
-    --chrome: rgba(28, 28, 30, .76); --stroke: rgba(255, 255, 255, .06); --hairline: rgba(84, 84, 88, .55);
-    --hi: rgba(255, 255, 255, .08); --shade: rgba(0, 0, 0, .5); --tint: rgba(10, 132, 255, .16); --thumb: #636366;
+    --bg: #050c1a; --fg: #ffffff; --fg-2: #9aa6bd; --fg-3: #5d6a85;
+    --card: #0f182b; --card-2: #17223a; --fill: rgba(120, 145, 200, .16); --fill-2: rgba(120, 145, 200, .26);
+    --chrome: rgba(15, 24, 43, .78); --stroke: rgba(150, 175, 230, .08); --hairline: rgba(120, 145, 200, .2);
+    --hi: rgba(255, 255, 255, .07); --shade: rgba(0, 4, 16, .55); --tint: rgba(40, 120, 255, .2); --thumb: #2b3a5c;
     --accent: #0a84ff; --income: #30d158; --expense: #ff453a; --warn: #ff9f0a; --scrim: rgba(0, 0, 0, .5);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #000000; --fg: #ffffff; --fg-2: #98989f; --fg-3: #636366;
-  --card: #1c1c1e; --card-2: #2c2c2e; --fill: rgba(118, 118, 128, .22); --fill-2: rgba(118, 118, 128, .32);
-  --chrome: rgba(28, 28, 30, .76); --stroke: rgba(255, 255, 255, .06); --hairline: rgba(84, 84, 88, .55);
-  --hi: rgba(255, 255, 255, .08); --shade: rgba(0, 0, 0, .5); --tint: rgba(10, 132, 255, .16); --thumb: #636366;
+  --bg: #050c1a; --fg: #ffffff; --fg-2: #9aa6bd; --fg-3: #5d6a85;
+  --card: #0f182b; --card-2: #17223a; --fill: rgba(120, 145, 200, .16); --fill-2: rgba(120, 145, 200, .26);
+  --chrome: rgba(15, 24, 43, .78); --stroke: rgba(150, 175, 230, .08); --hairline: rgba(120, 145, 200, .2);
+  --hi: rgba(255, 255, 255, .07); --shade: rgba(0, 4, 16, .55); --tint: rgba(40, 120, 255, .2); --thumb: #2b3a5c;
   --accent: #0a84ff; --income: #30d158; --expense: #ff453a; --warn: #ff9f0a; --scrim: rgba(0, 0, 0, .5);
   color-scheme: dark;
 }
