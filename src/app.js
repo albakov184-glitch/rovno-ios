@@ -1586,11 +1586,15 @@
   // ================= files =================
   async function saveFile(name, text, mime) {
     const cap = window.Capacitor;
-    const FS = cap && cap.Plugins && cap.Plugins.Filesystem, SH = cap && cap.Plugins && cap.Plugins.Share;
-    if (cap && cap.isNativePlatform && cap.isNativePlatform() && FS && SH) {
-      const r = await FS.writeFile({ path: name, data: text, directory: 'CACHE', encoding: 'utf8' });
-      await SH.share({ title: name, url: r.uri, dialogTitle: name });
-      return true;
+    const native = cap && cap.isNativePlatform && cap.isNativePlatform();
+    // iPhone: the system share sheet saves the file to Files or sends it anywhere
+    if (native || /iPhone|iPad/.test(navigator.userAgent)) {
+      try {
+        const file = new File([text], name, { type: mime });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; }
+      } catch (e) { if (e && e.name === 'AbortError') throw new Error('cancel'); }
+      const SH = cap && cap.Plugins && cap.Plugins.Share;
+      if (native && SH) { await SH.share({ title: name, text, dialogTitle: name }); return true; }
     }
     if (window.claude && window.claude.use) {
       const dl = await claude.use('downloads');
