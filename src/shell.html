@@ -1,0 +1,132 @@
+<title>Ровно</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
+<style>
+/*@CSS*/
+</style>
+
+<div class="bg" aria-hidden="true"></div>
+
+<div class="splash" id="splash" aria-hidden="true">
+  <svg viewBox="0 0 100 100"><defs><linearGradient id="lgS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3f8cff"/><stop offset="1" stop-color="#22c995"/></linearGradient><radialGradient id="lgSh" cx=".25" cy=".1" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><rect width="100" height="100" rx="24" fill="url(#lgS)"/><rect width="100" height="100" rx="24" fill="url(#lgSh)"/><rect class="b1" x="20" y="36" width="60" height="11" rx="5.5" fill="#fff"/><rect class="b2" x="20" y="55" width="42" height="11" rx="5.5" fill="#fff" opacity=".8"/></svg>
+  <div class="word">Ровно</div>
+</div>
+
+<div class="lock out" id="lock" role="dialog" aria-modal="true" aria-labelledby="lockTitle"></div>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="lgB" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3f8cff"/><stop offset="1" stop-color="#22c995"/></linearGradient><radialGradient id="lgBh" cx=".25" cy=".1" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".55" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><rect width="100" height="100" rx="24" fill="url(#lgB)"/><rect width="100" height="100" rx="24" fill="url(#lgBh)"/><rect x="20" y="36" width="60" height="11" rx="5.5" fill="#fff"/><rect x="20" y="55" width="42" height="11" rx="5.5" fill="#fff" opacity=".8"/></svg>
+      <span>Ровно</span>
+    </div>
+    <div class="nav-title" id="navTitle" aria-hidden="true">Обзор</div>
+    <div class="nav-right">
+      <div class="month-switch" id="monthSwitch">
+        <button type="button" id="prevM" class="press" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <span id="monthLabel" aria-live="polite">Месяц</span>
+        <button type="button" id="nextM" class="press" aria-label="Вперёд"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <h1 class="page-title" id="pageTitle">Обзор</h1>
+  <main class="views">
+    <section class="view" id="v-overview" aria-label="Обзор"></section>
+    <section class="view" id="v-operations" aria-label="Операции" hidden>
+      <label class="search" for="q">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <span class="sr">Поиск</span>
+        <input id="q" type="search" placeholder="Поиск" autocomplete="off" enterkeyhint="search">
+      </label>
+      <div class="seg" id="filter" role="group" aria-label="Тип операций">
+        <span class="thumb" aria-hidden="true"></span>
+        <button type="button" data-v="all" aria-pressed="true">Все</button>
+        <button type="button" data-v="expense" aria-pressed="false">Расходы</button>
+        <button type="button" data-v="income" aria-pressed="false">Доходы</button>
+      </div>
+      <div class="catchips" id="catFilter" role="group" aria-label="Категория"></div>
+      <div id="opsList"></div>
+    </section>
+    <section class="view" id="v-analytics" aria-label="Аналитика" hidden></section>
+    <section class="view" id="v-more" aria-label="Ещё" hidden></section>
+  </main>
+</div>
+
+<nav class="dock" aria-label="Разделы">
+  <div class="tabbar blur" id="tabbar" role="tablist">
+    <span class="blob" id="tabBlob" aria-hidden="true"></span>
+    <button type="button" role="tab" data-tab="overview" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Обзор</button>
+    <button type="button" role="tab" data-tab="operations" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>Операции</button>
+    <button type="button" role="tab" data-tab="analytics" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>Аналитика</button>
+    <button type="button" role="tab" data-tab="more" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="12" r=".6" fill="currentColor"/><circle cx="12" cy="12" r=".6" fill="currentColor"/><circle cx="16" cy="12" r=".6" fill="currentColor"/></svg>Ещё</button>
+  </div>
+  <button class="fab" id="fab" type="button" aria-label="Добавить операцию"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+</nav>
+
+<div id="pages"></div>
+
+<form class="sheet blur" id="txSheet" role="dialog" aria-modal="true" aria-labelledby="txTitle" hidden novalidate>
+  <div class="grab-zone">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-h">
+      <button type="button" class="link" data-close>Отмена</button>
+      <h3 id="txTitle">Новая операция</h3>
+      <span></span>
+    </div>
+  </div>
+  <div class="seg" id="typeSeg" role="group" aria-label="Тип операции">
+    <span class="thumb" aria-hidden="true"></span>
+    <button type="button" data-v="expense" aria-pressed="true">Расход</button>
+    <button type="button" data-v="income" aria-pressed="false">Доход</button>
+  </div>
+  <div class="amount-view" id="amountView">
+    <div class="big zero num" id="amountBig" role="status"><span class="digits" id="digits">0</span><i class="caret" aria-hidden="true"></i><span class="cur" id="curSign">₽</span></div>
+    <div class="res num" id="amountRes"></div>
+  </div>
+  <div class="quick" id="quick" aria-label="Частые операции"></div>
+  <div class="cats" id="cats" role="group" aria-label="Категория"></div>
+  <div class="fields">
+    <div class="field"><label for="txNote">Заметка</label><input id="txNote" maxlength="60" placeholder="Необязательно" autocomplete="off" enterkeyhint="done"></div>
+    <div class="field"><label for="txDate">Дата</label><input id="txDate" type="date"></div>
+    <div class="field" id="repeatRow"><label for="txRepeat">Каждый месяц</label><span class="switch"><input type="checkbox" id="txRepeat"><span></span></span></div>
+  </div>
+  <div class="keypad" id="keypad" aria-label="Калькулятор">
+    <button type="button" class="key" data-k="7">7</button><button type="button" class="key" data-k="8">8</button><button type="button" class="key" data-k="9">9</button><button type="button" class="key op" data-k="back" aria-label="Стереть"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5h11v14H9l-6-7z"/><path d="M13 9.5l5 5M18 9.5l-5 5"/></svg></button>
+    <button type="button" class="key" data-k="4">4</button><button type="button" class="key" data-k="5">5</button><button type="button" class="key" data-k="6">6</button><button type="button" class="key op" data-k="-" aria-label="Минус">−</button>
+    <button type="button" class="key" data-k="1">1</button><button type="button" class="key" data-k="2">2</button><button type="button" class="key" data-k="3">3</button><button type="button" class="key op" data-k="+" aria-label="Плюс">+</button>
+    <button type="button" class="key" data-k=",">,</button><button type="button" class="key" data-k="0">0</button><button type="button" class="key" data-k="00">00</button><button type="button" class="key op" data-k="=" aria-label="Посчитать">=</button>
+  </div>
+  <button class="save" id="txSave" type="submit">Сохранить</button>
+  <div class="sheet-actions" id="txEditActions" hidden>
+    <button type="button" class="btn soft" id="txDup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Повторить</button>
+    <button type="button" class="btn danger" id="txDel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Удалить</button>
+  </div>
+</form>
+
+<form class="sheet blur" id="formSheet" role="dialog" aria-modal="true" aria-labelledby="formTitle" hidden novalidate>
+  <div class="grab-zone">
+    <div class="grab" aria-hidden="true"></div>
+    <div class="sheet-h">
+      <button type="button" class="link" data-close>Отмена</button>
+      <h3 id="formTitle">Форма</h3>
+      <button type="submit" class="link r" id="formOk">Готово</button>
+    </div>
+  </div>
+  <div class="form-body" id="formBody"></div>
+  <div class="form-err" id="formErr" role="alert"></div>
+  <div id="formExtra" class="form-body"></div>
+</form>
+
+<div class="action" id="action" role="alertdialog" aria-modal="true" hidden></div>
+
+<div class="toast blur" id="toast" role="status" aria-live="polite"></div>
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<script>
+/*@JS*/
+</script>

@@ -1,10 +1,12 @@
 name: Build IPA
 
-# Собирает неподписанный Rovno.ipa на macOS-раннере GitHub.
-# Где взять файл:
-#   • Actions → Build IPA → последний запуск → артефакт Rovno-ipa
-#   • Releases → «Ровно (последняя сборка)» — ссылку можно открыть прямо с iPhone
-# Подписать и установить: своим сертификатом (ESign, Scarlet, Sideloadly, AltStore).
+# Каждый push в main:
+#   1. собирает Rovno-Offline.ipa — всё внутри приложения, работает без интернета;
+#   2. собирает Rovno-Online.ipa — при запуске берёт свежую версию с GitHub Pages,
+#      без интернета открывает встроенную копию; данные в обоих случаях на iPhone;
+#   3. публикует сайт на GitHub Pages (ветка gh-pages);
+#   4. выкладывает оба IPA в релиз «latest».
+# IPA неподписанные: подпишите своим сертификатом (ESign, Scarlet, Sideloadly, AltStore).
 
 on:
   push:
@@ -18,10 +20,13 @@ concurrency:
   group: build-ipa
   cancel-in-progress: true
 
+env:
+  PAGES_URL: https://albakov184-glitch.github.io/rovno-ios/
+
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -33,42 +38,91 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web app and sync iOS project
-        run: |
-          npm run build
-          npx cap sync ios
+      - name: Build web app
+        run: npm run build
 
-      - name: Build iOS app (unsigned)
+      - name: Publish site to GitHub Pages
+        run: |
+          mkdir -p site && cp -R web/. site/
+          cd site
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Сайт из ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+
+      # ---------- offline ----------
+      - name: Sync iOS project (offline)
+        run: npx cap sync ios
+
+      - name: Build offline app
         run: |
           xcodebuild -project ios/App/App.xcodeproj -scheme App \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
-            -derivedDataPath build/ios \
+            -derivedDataPath build/offline \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build
 
-      - name: Package IPA
+      - name: Package Rovno-Offline.ipa
         run: |
-          APP=build/ios/Build/Products/Release-iphoneos/App.app
+          APP=build/offline/Build/Products/Release-iphoneos/App.app
           test -f "$APP/App" || { echo "App.app не собран"; exit 1; }
-          mkdir -p Payload
-          cp -R "$APP" Payload/
-          zip -qry Rovno.ipa Payload
-          ls -la Rovno.ipa
+          mkdir -p pkg-offline/Payload && cp -R "$APP" pkg-offline/Payload/
+          (cd pkg-offline && zip -qry ../Rovno-Offline.ipa Payload)
+
+      # ---------- online ----------
+      - name: Switch config to online mode
+        run: |
+          node -e "
+            const fs = require('fs');
+            const c = JSON.parse(fs.readFileSync('capacitor.config.json', 'utf8'));
+            c.appId = 'app.rovno.finance.online';
+            c.server = { url: process.env.PAGES_URL, errorPath: 'index.html' };
+            fs.writeFileSync('capacitor.config.json', JSON.stringify(c, null, 2));
+          "
+          npx cap sync ios
+
+      - name: Build online app
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build/online \
+            PRODUCT_BUNDLE_IDENTIFIER=app.rovno.finance.online \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package Rovno-Online.ipa
+        run: |
+          APP=build/online/Build/Products/Release-iphoneos/App.app
+          test -f "$APP/App" || { echo "App.app не собран"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Ровно Онлайн" "$APP/Info.plist"
+          grep -q '"url"' "$APP/capacitor.config.json" || { echo "online config missing"; exit 1; }
+          mkdir -p pkg-online/Payload && cp -R "$APP" pkg-online/Payload/
+          (cd pkg-online && zip -qry ../Rovno-Online.ipa Payload)
+          ls -la *.ipa
 
       - uses: actions/upload-artifact@v4
         with:
           name: Rovno-ipa
-          path: Rovno.ipa
+          path: Rovno-*.ipa
           retention-days: 30
 
       - name: Publish to the "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NOTES="Сборка ${GITHUB_SHA::7} от $(date -u '+%d.%m.%Y %H:%M') UTC. Неподписанный IPA: подпишите своим сертификатом."
+          VER=$(node -p "require('./package.json').version")
+          NOTES="Ровно ${VER}, сборка ${GITHUB_SHA::7} от $(date -u '+%d.%m.%Y %H:%M') UTC.
+
+          • Rovno-Offline.ipa — работает полностью без интернета.
+          • Rovno-Online.ipa — обновляется сама с сайта ${PAGES_URL}, без интернета открывает встроенную копию.
+
+          IPA неподписанные: подпишите своим сертификатом."
           if gh release view latest >/dev/null 2>&1; then
-            gh release edit latest --title "Ровно (последняя сборка)" --notes "$NOTES"
-            gh release upload latest Rovno.ipa --clobber
+            gh release edit latest --title "Ровно ${VER}" --notes "$NOTES"
+            gh release delete-asset latest Rovno.ipa -y 2>/dev/null || true
+            gh release upload latest Rovno-Offline.ipa Rovno-Online.ipa --clobber
           else
-            gh release create latest Rovno.ipa --title "Ровно (последняя сборка)" --notes "$NOTES" --latest
+            gh release create latest Rovno-Offline.ipa Rovno-Online.ipa --title "Ровно ${VER}" --notes "$NOTES" --latest
           fi

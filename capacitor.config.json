@@ -2,7 +2,6 @@
   "appId": "app.rovno.finance",
   "appName": "Ровно",
   "webDir": "web",
-  "backgroundColor": "#05060a",
   "ios": {
     "contentInset": "never",
     "scrollEnabled": true,

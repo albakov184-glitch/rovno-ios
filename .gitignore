@@ -1,5 +1,6 @@
 node_modules/
 web/
+dist/
 build/
 Payload/
 *.ipa
@@ -11,3 +12,6 @@ ios/DerivedData/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+site/
+pkg-offline/
+pkg-online/
