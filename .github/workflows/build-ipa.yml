@@ -132,6 +132,12 @@ jobs:
           path: Rovno-*.ipa
           retention-days: 30
 
+      - name: Package offline files
+        run: |
+          cp web/index.html Rovno-Offline.html
+          (cd web && zip -qr ../Rovno-Site.zip .)
+          ls -la Rovno-Offline.html Rovno-Site.zip
+
       - name: Publish to the "latest" release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -141,14 +147,16 @@ jobs:
 
           • Rovno-Offline.ipa — работает полностью без интернета.
           • Rovno-Online.ipa — обновляется сама с сайта ${PAGES_URL}, без интернета открывает встроенную копию.
+          • Rovno-Offline.html — всё приложение в одном файле, открывается в браузере без интернета.
+          • Rovno-Site.zip — сайт целиком, чтобы разместить на своём хостинге.
 
           IPA неподписанные: подпишите своим сертификатом."
           if gh release view latest >/dev/null 2>&1; then
             gh release edit latest --title "Ровно ${VER}" --notes "$NOTES"
             gh release delete-asset latest Rovno.ipa -y 2>/dev/null || true
-            gh release upload latest Rovno-Offline.ipa Rovno-Online.ipa --clobber
+            gh release upload latest Rovno-Offline.ipa Rovno-Online.ipa Rovno-Offline.html Rovno-Site.zip --clobber
           else
-            gh release create latest Rovno-Offline.ipa Rovno-Online.ipa --title "Ровно ${VER}" --notes "$NOTES" --latest
+            gh release create latest Rovno-Offline.ipa Rovno-Online.ipa Rovno-Offline.html Rovno-Site.zip --title "Ровно ${VER}" --notes "$NOTES" --latest
           fi
 
       # readable without signing in: logs go to a public release when something fails

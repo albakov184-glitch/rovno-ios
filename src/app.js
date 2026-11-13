@@ -5,7 +5,8 @@
   const $ = id => document.getElementById(id);
   const qs = (sel, root) => (root || document).querySelector(sel);
   const qsa = (sel, root) => [...(root || document).querySelectorAll(sel)];
-  const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // the economy mode in settings also switches off decorative motion
+  const reduced = () => document.documentElement.classList.contains('calm') || matchMedia('(prefers-reduced-motion: reduce)').matches;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const uid = p => (p || 'x') + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -108,9 +109,17 @@
   // ================= state =================
   const KEY = 'rovno.state.v2', OLD_KEY = 'rovno.tx.v1';
   function defaults() {
-    return { v: 2, tx: [], budgets: { total: 0, cats: {} }, goals: [], recurring: [], cats: [], settings: { currency: 'RUB', theme: 'system', hide: false, haptics: true, pin: '' } };
+    return { v: 2, tx: [], budgets: { total: 0, cats: {} }, goals: [], recurring: [], cats: [], settings: { currency: 'RUB', theme: 'system', palette: 'night', accent: 'blue', motion: 'full', hide: false, haptics: true, pin: '' } };
   }
   function validTx(t) { return t && (t.type === 'income' || t.type === 'expense') && typeof t.amount === 'number' && isFinite(t.amount) && t.amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(t.date || ''); }
+  // [id, name, light bg, dark bg, dark card, default accent]
+  const PALETTES = [
+    ['night', 'Ночь', '#f1f4fa', '#050c1a', '#0f182b'],
+    ['graphite', 'Графит', '#f2f2f7', '#000000', '#1c1c1e'],
+    ['emerald', 'Изумруд', '#eef6f2', '#04120e', '#0c1f19'],
+    ['amethyst', 'Аметист', '#f5f2fb', '#0d0818', '#1a1229']
+  ];
+  const ACCENTS = [['blue', 'Синий', '#0a84ff'], ['indigo', 'Индиго', '#5e5ce6'], ['purple', 'Фиолетовый', '#af52de'], ['pink', 'Розовый', '#ff2d55'], ['orange', 'Оранжевый', '#ff9500'], ['teal', 'Бирюзовый', '#30b0c7']];
   const CURRENCIES = [
     ['RUB', 'Российский рубль'], ['USD', 'Доллар США'], ['EUR', 'Евро'], ['KZT', 'Казахстанский тенге'],
     ['UAH', 'Украинская гривна'], ['BYN', 'Белорусский рубль'], ['UZS', 'Узбекский сум'], ['KGS', 'Киргизский сом'],
@@ -153,6 +162,9 @@
     d.settings.hide = st.hide === true;
     d.settings.haptics = st.haptics !== false;
     d.settings.pin = /^[0-9a-z]{1,16}$/.test(st.pin || '') ? st.pin : '';
+    if (PALETTES.some(x => x[0] === st.palette)) d.settings.palette = st.palette;
+    if (ACCENTS.some(x => x[0] === st.accent)) d.settings.accent = st.accent;
+    if (st.motion === 'calm') d.settings.motion = 'calm';
     return d;
   }
   let state = defaults();
@@ -696,7 +708,7 @@
     countTo($('exp'), e, x => money(x));
     const rate = i ? clamp(Math.round((i - e) / i * 100), 0, 100) : 0;
     const C = 2 * Math.PI * 27;
-    raf2(() => { $('ringVal').style.strokeDasharray = (C * rate / 100) + ' ' + C; });
+    raf2(() => { const rv = $('ringVal'); rv.style.strokeDasharray = (C * rate / 100) + ' ' + C; rv.classList.toggle('on', rate > 0); });
     countTo($('ringPct'), rate, x => Math.round(x) + '%');
 
     const facts = [];
@@ -799,7 +811,7 @@
     const r = 24, C = 2 * Math.PI * r, p = clamp(g.saved / g.target, 0, 1);
     return '<div class="gring"><svg viewBox="0 0 56 56"><circle class="t" cx="28" cy="28" r="' + r + '"/><circle class="v" cx="28" cy="28" r="' + r + '" style="stroke:' + g.color + ';stroke-dasharray:0 ' + C + '" data-len="' + (C * p) + ' ' + C + '"/></svg><span class="num">' + pct(p * 100) + '</span></div>';
   }
-  function drawRings(root) { raf2(() => qsa('circle[data-len]', root).forEach(c => { c.style.strokeDasharray = c.dataset.len; })); }
+  function drawRings(root) { raf2(() => qsa('circle[data-len]', root).forEach(c => { c.style.strokeDasharray = c.dataset.len; c.classList.toggle('on', parseFloat(c.dataset.len) > .5); })); }
   function renderOvGoals() {
     const box = $('ovGoals');
     if (!state.goals.length) { box.innerHTML = ''; return; }
@@ -1278,7 +1290,7 @@
     const v = $('v-more');
     const s = state.settings;
     const cur = CURRENCIES.find(c => c[0] === s.currency);
-    const themeName = { system: 'Как в системе', light: 'Светлая', dark: 'Тёмная' }[s.theme] || 'Как в системе';
+    const themeName = (PALETTES.find(x => x[0] === s.palette) || PALETTES[0])[1] + ', ' + ({ system: 'авто', light: 'светлая', dark: 'тёмная' }[s.theme] || 'авто');
     const budgetSub = state.budgets.total ? money(state.budgets.total, { whole: true, show: true }) + ' в месяц' : 'Не задан';
     v.innerHTML =
       '<div class="grp"><div class="list-head">Планирование</div><div class="card list">' +
@@ -1556,21 +1568,38 @@
     });
   }
   function applyTheme() {
-    const t = state.settings.theme;
-    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
-    else if (TG && TG.colorScheme) document.documentElement.dataset.theme = TG.colorScheme;
-    else if (!window.claude) delete document.documentElement.dataset.theme;
+    const st = state.settings, root = document.documentElement;
+    if (st.theme === 'light' || st.theme === 'dark') root.dataset.theme = st.theme;
+    else if (TG && TG.colorScheme) root.dataset.theme = TG.colorScheme;
+    else if (!window.claude) delete root.dataset.theme;
+    if (st.palette && st.palette !== 'night') root.dataset.palette = st.palette; else delete root.dataset.palette;
+    if (st.accent && st.accent !== 'blue') root.dataset.accent = st.accent; else delete root.dataset.accent;
+    root.classList.toggle('calm', st.motion === 'calm');
     if (TG && tgAtLeast('6.1')) {
       // paint Telegram's header and background in the app's own background
       const rgb = getComputedStyle(document.body).backgroundColor.match(/\d+/g);
       if (rgb) { const hex = '#' + rgb.slice(0, 3).map(x => Number(x).toString(16).padStart(2, '0')).join(''); try { TG.setHeaderColor(hex); TG.setBackgroundColor(hex); if (TG.setBottomBarColor) TG.setBottomBarColor(hex); } catch (e) {} }
     }
   }
+  function isDark() { return getComputedStyle(document.documentElement).colorScheme.includes('dark'); }
   function openTheme() {
     pushPage('Оформление', pg => {
-      pg.body.innerHTML = '<div class="card list">' + [['system', 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([k, n]) =>
-        li({ title: n, right: k === state.settings.theme ? '<span class="check">' + icon('check') + '</span>' : '', data: k, btn: true })).join('') + '</div>';
-      qsa('[data-k]', pg.body).forEach(b => b.onclick = () => { state.settings.theme = b.dataset.k; haptic('select'); applyTheme(); commit(); });
+      const st = state.settings;
+      const dark = isDark();
+      pg.body.innerHTML =
+        '<div class="card preview"><div class="pv-top"><span class="label">Остаток за месяц</span><span class="chip">' + icon('sparkle') + 'пример</span></div><div class="pv-bal num">54 380 ₽</div><div class="bar"><i style="--c:var(--accent);width:62%"></i></div><div style="display:flex;justify-content:space-between;align-items:center"><span class="muted" style="font-size:14px">Так будет выглядеть приложение</span><button type="button" class="pv-btn" tabindex="-1">Кнопка</button></div></div>' +
+        '<div class="grp"><div class="list-head">Тема</div><div class="card"><div class="fseg2">' + segHtml('thSeg', [['system', 'Авто'], ['light', 'Светлая'], ['dark', 'Тёмная']], st.theme, 'Тема') + '</div></div></div>' +
+        '<div class="grp"><div class="list-head">Стиль</div><div class="pal-grid">' + PALETTES.map(([id, name, lb, db, dc]) =>
+          '<button type="button" class="pal" data-pal="' + id + '" aria-pressed="' + (st.palette === id) + '"><span class="sw" style="background:' + (dark ? db : lb) + '"><i style="background:' + (dark ? dc : '#ffffff') + '"></i><b style="background:var(--accent)"></b></span><span>' + esc(name) + '</span></button>').join('') + '</div></div>' +
+        '<div class="grp"><div class="list-head">Акцент</div><div class="card"><div class="acc-row">' + ACCENTS.map(([id, name, c]) =>
+          '<button type="button" data-acc="' + id + '" aria-pressed="' + (st.accent === id) + '" aria-label="' + esc(name) + '" style="background:' + c + ';color:' + c + '">' + '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>').join('') + '</div></div></div>' +
+        '<div class="grp"><div class="list-head">Анимации</div><div class="card"><div class="fseg2">' + segHtml('mvSeg', [['full', 'Полные'], ['calm', 'Экономные']], st.motion, 'Анимации') + '</div></div><div class="list-foot">«Экономные» убирают размытие и декоративные эффекты. Попробуйте, если телефон подтормаживает.</div></div>';
+      seg($('thSeg'), st.theme); seg($('mvSeg'), st.motion);
+      const apply = () => { haptic('select'); applyTheme(); persist(); pg.refresh(); };
+      qsa('#thSeg button', pg.body).forEach(b => b.onclick = () => { st.theme = b.dataset.v; apply(); });
+      qsa('#mvSeg button', pg.body).forEach(b => b.onclick = () => { st.motion = b.dataset.v; apply(); });
+      qsa('[data-pal]', pg.body).forEach(b => b.onclick = () => { st.palette = b.dataset.pal; apply(); });
+      qsa('[data-acc]', pg.body).forEach(b => b.onclick = () => { st.accent = b.dataset.acc; apply(); });
     });
   }
 
@@ -1939,6 +1968,7 @@
     } else if (fromUser && prev === name) {
       window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
     }
+    syncBack();
     try { if (location.hash.slice(1) !== name) history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   qsa('[data-tab]', $('tabbar')).forEach(b => b.onclick = () => go(b.dataset.tab, true));
@@ -2033,6 +2063,14 @@
   };
 
   // ================= boot =================
+  // an unexpected error must not leave the user on the splash or a frozen screen
+  let errShown = false;
+  window.addEventListener('error', () => {
+    $('splash').classList.add('out');
+    if (!errShown && ready) { errShown = true; toast('Что-то пошло не так. Данные сохранены, перезапустите приложение.', 'alert'); }
+  });
+  window.addEventListener('unhandledrejection', () => { $('splash').classList.add('out'); });
+
   async function boot() {
     renderNav();
     go((location.hash || '').slice(1) || 'overview', false);
@@ -2061,13 +2099,16 @@
       state = normalize(await backend.load());
     }
     ready = true;
-    applyTheme();
-    const migrated = processRecurring();
-    persist(migrated > 0);
-    renderAll();
-    requestAnimationFrame(() => moveBlob(false));
-    if (state.settings.pin) showLock();
-    setTimeout(() => $('splash').classList.add('out'), reduced() ? 0 : 750);
+    try {
+      applyTheme();
+      const migrated = processRecurring();
+      persist(migrated > 0);
+      renderAll();
+      requestAnimationFrame(() => moveBlob(false));
+      if (state.settings.pin) showLock();
+    } finally {
+      setTimeout(() => $('splash').classList.add('out'), reduced() ? 0 : 650);
+    }
     // web version only: keep working offline
     if ('serviceWorker' in navigator && location.protocol === 'https:' && !window.claude && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) && /github\.io$/.test(location.hostname)) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
